@@ -1,0 +1,29 @@
+{
+  "profiles": [
+    {
+      "name": "我的中转站",
+      "format": "newapi",
+      "base_url": "https://your-relay.example.com",
+      "api_key": "sk-xxxxxxxx",
+      "secret_key": "",
+      "model": "kling-v2-master"
+    },
+    {
+      "name": "可灵官方",
+      "format": "kling",
+      "base_url": "https://api-beijing.klingai.com",
+      "api_key": "YOUR_ACCESS_KEY",
+      "secret_key": "YOUR_SECRET_KEY",
+      "model": "kling-v1-6"
+    }
+  ],
+  "active_profile": "我的中转站",
+  "default_duration": 5,
+  "default_resolution": "720p",
+  "default_ratio": "16:9",
+  "timeout": 120,
+  "poll_interval": 5,
+  "max_wait": 900,
+  "concurrency": 3,
+  "server_api_key": ""
+}

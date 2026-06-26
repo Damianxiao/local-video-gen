@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本地视频生成 · 多服务商统一</title>
+<style>
+  :root{
+    --bg:#0e1016; --panel:#171a23; --panel2:#1f2330; --line:#2a2f3d;
+    --txt:#e7e9ee; --mut:#9aa3b2; --acc:#6d8cff; --acc2:#8b5cf6;
+    --ok:#37d399; --warn:#fbbf24; --err:#f87171; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.5 system-ui,"Segoe UI","Microsoft YaHei",sans-serif}
+  a{color:var(--acc)}
+  header{display:flex;align-items:center;gap:14px;padding:14px 22px;
+    border-bottom:1px solid var(--line);background:linear-gradient(90deg,#171a23,#13151d)}
+  header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.5px}
+  header .badge{font-size:12px;color:var(--mut);padding:3px 9px;border:1px solid var(--line);
+    border-radius:20px}
+  header .sp{flex:1}
+  .tabs{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--line);
+    background:var(--panel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  .tab{padding:9px 16px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--mut);
+    font-weight:600;border:1px solid transparent;border-bottom:none}
+  .tab.active{color:var(--txt);background:var(--bg);border-color:var(--line)}
+  main{padding:20px;max-width:1180px;margin:0 auto}
+  .view{display:none}.view.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;margin-bottom:16px}
+  .card h3{margin:0 0 12px;font-size:14px;color:var(--mut);font-weight:700;
+    text-transform:uppercase;letter-spacing:.6px}
+  label{display:block;font-size:12px;color:var(--mut);margin:10px 0 5px;font-weight:600}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);
+    color:var(--txt);padding:9px 11px;border-radius:8px;font:inherit;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+  textarea{resize:vertical;min-height:84px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:130px}
+  button{background:var(--acc);color:#fff;border:none;padding:10px 18px;border-radius:9px;
+    font:inherit;font-weight:700;cursor:pointer}
+  button:hover{filter:brightness(1.08)}button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  button.sm{padding:5px 11px;font-size:12px;font-weight:600}
+  button.danger{background:transparent;border:1px solid var(--err);color:var(--err)}
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
+    font-size:12px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    overflow:hidden}
+  .seg button{background:transparent;color:var(--mut);border-radius:0;padding:8px 16px}
+  .seg button.on{background:var(--acc);color:#fff}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .tcard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px;
+    display:flex;flex-direction:column;gap:8px}
+  .tcard video{width:100%;border-radius:8px;background:#000;max-height:280px}
+  .tcard .pr{font-size:12px;color:var(--mut)}
+  .bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));
+    width:0;transition:width .4s}
+  .st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px}
+  .st.queued,.st.submitting,.st.processing,.st.downloading{background:#1e293b;color:var(--warn)}
+  .st.done{background:#0f2e22;color:var(--ok)}
+  .st.error{background:#3a1620;color:var(--err)}
+  .err{color:var(--err);font-size:12px;white-space:pre-wrap;word-break:break-word}
+  .muted{color:var(--mut);font-size:12px}
+  .pf{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:9px;margin-bottom:7px;background:var(--panel2)}
+  .pf.on{border-color:var(--acc)}
+  .pf .nm{font-weight:700}.pf .meta{font-size:11px;color:var(--mut)}
+  .pf .sp{flex:1}
+  .toast{position:fixed;right:18px;bottom:18px;background:var(--panel2);border:1px solid var(--line);
+    padding:12px 16px;border-radius:10px;max-width:380px;white-space:pre-wrap;z-index:50;
+    box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  .toast.err{border-color:var(--err)}.toast.ok{border-color:var(--ok)}
+  .drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;
+    color:var(--mut);cursor:pointer;background:var(--panel2)}
+  .drop.has{border-style:solid;border-color:var(--acc);color:var(--txt)}
+  .thumb{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .thumb img{height:70px;border-radius:7px;border:1px solid var(--line)}
+  .empty{text-align:center;color:var(--mut);padding:40px}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 本地视频生成</h1>
+  <span class="badge" id="curProfile">未配置</span>
+  <span class="badge" id="curFmt">—</span>
+  <div class="sp"></div>
+  <span class="muted" id="workers"></span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-v="gen">生成</div>
+  <div class="tab" data-v="drama">🎞 漫剧</div>
+  <div class="tab" data-v="tasks">任务 <span id="taskBadge" class="muted"></span></div>
+  <div class="tab" data-v="history">历史</div>
+  <div class="tab" data-v="gallery">画廊</div>
+  <div class="tab" data-v="stress">压测</div>
+  <div class="tab" data-v="settings">设置</div>
+</div>
+
+<main>
+  <!-- ============ 生成 ============ -->
+  <section class="view active" id="v-gen">
+    <div class="card">
+      <h3>生成模式</h3>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+        <div class="seg" id="modeSeg">
+          <button class="on" data-mode="t2v">文生视频</button>
+          <button data-mode="i2v">图生视频</button>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label style="margin-top:0">服务商(本次生成用哪家)</label>
+          <select id="genProfile"></select>
+        </div>
+      </div>
+
+      <div id="i2vBox" style="display:none">
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>首帧图(必填)</label>
+            <div class="drop" id="dropFirst">点击上传 / 拖入首帧图<input type="file" id="firstFile" accept="image/*" hidden></div>
+            <input id="firstUrl" placeholder="或粘贴首帧图 URL" style="margin-top:7px">
+          </div>
+          <div>
+            <label>尾帧图(可选,首尾帧插值)</label>
+            <div class="drop" id="dropLast">点击上传 / 拖入尾帧图<input type="file" id="lastFile" accept="image/*" hidden></div>
+            <input id="lastUrl" placeholder="或粘贴尾帧图 URL" style="margin-top:7px">
+          </div>
+        </div>
+        <div class="thumb" id="thumbs"></div>
+      </div>
+
+      <label style="margin-top:14px">提示词(每行一条,可批量;留空换行忽略)</label>
+      <textarea id="prompt" placeholder="一只橘猫在窗台上伸懒腰,阳光洒进来,电影感镜头,慢动作"></textarea>
+      <div class="row" style="margin-top:4px">
+        <div>
+          <label>负向提示词(可选)</label>
+          <input id="negPrompt" placeholder="模糊, 抖动, 低画质, 畸变">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label>模型(可下拉选 / 自由填,留空用默认)</label>
+          <div style="display:flex;gap:6px">
+            <input id="model" list="modelList" placeholder="默认" style="flex:1">
+            <button class="ghost sm" id="modelTest" type="button" title="测试当前模型是否可用(视频会计费一次)">测</button>
+          </div>
+          <datalist id="modelList"></datalist>
+        </div>
+        <div>
+          <label>时长秒数(可自定义)</label>
+          <input id="duration" list="durationList" placeholder="默认">
+          <datalist id="durationList"></datalist>
+        </div>
+        <div>
+          <label>分辨率(可自定义)</label>
+          <input id="resolution" list="resolutionList" placeholder="默认">
+          <datalist id="resolutionList"></datalist>
+        </div>
+        <div>
+          <label>画面比例(可自定义)</label>
+          <input id="ratio" list="ratioList" placeholder="默认">
+          <datalist id="ratioList"></datalist>
+        </div>
+        <div>
+          <label>每条重复</label>
+          <input id="repeat" type="number" min="1" max="10" value="1">
+        </div>
+      </div>
+      <div class="hint" id="capHint"></div>
+
+      <div id="advBox" style="display:none;margin-top:10px">
+        <label style="margin-bottom:2px">服务商高级参数(填了才发送,留「默认」/空则不发)</label>
+        <div class="row" id="advFields"></div>
+      </div>
+
+      <details style="margin-top:12px">
+        <summary class="muted" style="cursor:pointer">附加参数(extra,JSON,透传给底层接口,如 <code>{"mode":"pro","cfg_scale":0.7,"seed":42}</code>)</summary>
+        <textarea id="extra" placeholder='{"mode":"pro"}' style="min-height:60px;margin-top:8px"></textarea>
+      </details>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+        <button id="btnGen">🚀 开始生成</button>
+        <button class="ghost sm" id="btnFav">★ 收藏提示词</button>
+        <span class="muted" id="genMsg"></span>
+      </div>
+    </div>
+
+    <div class="card" id="favCard">
+      <h3>收藏的提示词</h3>
+      <div id="favList" class="muted">暂无收藏</div>
+    </div>
+  </section>
+
+  <!-- ============ 漫剧 ============ -->
+  <section class="view" id="v-drama">
+    <div class="card">
+      <h3>① 故事创意 → 分镜剧本</h3>
+      <div class="row">
+        <div style="flex:3"><label>故事创意 / 梗概</label>
+          <textarea id="dIdea" placeholder="例:雨夜,失忆的少女在废弃地铁站遇见一只会说话的黑猫,黑猫说它知道她是谁……"></textarea></div>
+        <div style="flex:1;min-width:150px">
+          <label>镜头数</label><input id="dShots" type="number" min="1" max="30" value="6">
+          <label>画幅</label>
+          <select id="dRatio"><option>16:9</option><option selected>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select>
+          <label>画风倾向(可选)</label><input id="dStyle" placeholder="日系赛璐珞 / 国风水墨 / 写实电影感">
+        </div>
+      </div>
+      <details style="margin-top:6px" id="dSettingsBox">
+        <summary class="muted" style="cursor:pointer">流水线服务商设置(分镜LLM / 生图 / 视频 / 配音)— 各步骤可用不同服务商</summary>
+        <div class="row" style="margin-top:8px">
+          <div><label>分镜(LLM)服务商</label><select id="dLlmProfile"></select>
+            <div style="display:flex;gap:6px;margin-top:6px"><input id="dLlmModel" placeholder="模型(可留空)" style="flex:1"><button class="ghost sm" id="dLlmTest" type="button">测</button></div></div>
+          <div><label>生图服务商</label><select id="dImgProfile"></select>
+            <div style="display:flex;gap:6px;margin-top:6px"><input id="dImgModel" list="dImgModelList" placeholder="生图模型" style="flex:1"><button class="ghost sm" id="dImgTest" type="button">测</button></div><datalist id="dImgModelList"></datalist></div>
+          <div><label>生图方式</label><select id="dImgFormat"></select>
+            <input id="dImgSize" placeholder="尺寸 如 1024x1536(可留空)" style="margin-top:6px"></div>
+        </div>
+        <div class="row">
+          <div><label>视频服务商</label><select id="dVidProfile"></select>
+            <div style="display:flex;gap:6px;margin-top:6px"><input id="dVidModel" list="dVidModelList" placeholder="视频模型" style="flex:1"><button class="ghost sm" id="dVidTest" type="button">测</button></div><datalist id="dVidModelList"></datalist></div>
+          <div><label>每镜分辨率</label><input id="dVidRes" list="dResList" placeholder="720p">
+            <datalist id="dResList"><option>480p</option><option>720p</option><option>1080p</option></datalist></div>
+          <div><label>帧率 fps</label><input id="dFps" type="number" value="24"></div>
+          <div><label>动态漫运镜(免费)</label><select id="dMotion"></select></div>
+        </div>
+        <div class="row">
+          <div><label><input type="checkbox" id="dTts" style="width:auto"> 配音(TTS)</label>
+            <select id="dTtsProfile" style="margin-top:4px"></select>
+            <div class="row" style="margin-top:4px"><div style="display:flex;gap:6px"><input id="dTtsModel" placeholder="tts-1" style="flex:1"><button class="ghost sm" id="dTtsTest" type="button">测</button></div><div><select id="dTtsVoice"></select></div></div>
+            <input id="dTtsStyle" placeholder="配音语气/风格(让声音更生动)" value="用富有感情、自然、抑扬顿挫的旁白语气朗读,注意停顿和节奏,娓娓道来" style="margin-top:4px">
+            <label style="margin-top:4px;display:block;font-size:12px"><input type="checkbox" id="dTtsAuto" checked style="width:auto"> 智能配音(整段自然朗读+自动多角色音色,推荐,治生硬)</label>
+            <label style="display:block;font-size:12px"><input type="checkbox" id="dTtsEnhance" checked style="width:auto"> 配音导演润色(给台词加停顿/节奏/张力,更抑扬顿挫)</label></div>
+          <div><label><input type="checkbox" id="dSubs" checked style="width:auto"> 烧录字幕</label>
+            <input id="dFont" placeholder="字体 Microsoft YaHei" style="margin-top:4px"></div>
+          <div><label>BGM(可选,上传)</label><input type="file" id="dBgm" accept="audio/*"></div>
+        </div>
+        <div class="row">
+          <div><label>镜头转场</label><select id="dTransition"></select></div>
+          <div><label>转场时长(秒)</label><input id="dTransDur" type="number" step="0.1" min="0.2" value="0.5"></div>
+          <div></div>
+        </div>
+      </details>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button id="dGenStoryboard">✍ 生成分镜</button>
+        <select id="dProjectPicker" style="width:auto;max-width:280px"></select>
+        <button class="ghost sm" id="dLoadProject">载入</button>
+        <button class="danger sm" id="dDeleteProject">删除</button>
+        <span class="muted" id="dMsg"></span>
+      </div>
+      <div id="dFfmpegWarn" class="hint" style="color:var(--warn);display:none"></div>
+    </div>
+
+    <div id="dStage" style="display:none">
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0" id="dTitle"></h3>
+          <span class="pill" id="dStatus"></span>
+          <div class="sp" style="flex:1"></div>
+          <button class="ghost sm" id="dRefresh">刷新</button>
+        </div>
+        <div id="dJob" style="margin-top:8px"></div>
+        <div class="row" style="margin-top:10px">
+          <div style="flex:0 0 auto"><button class="sm" id="dGenChars">②生成角色参考图</button></div>
+          <div style="flex:0 0 auto"><button class="sm" id="dGenKeys">③生成关键帧</button></div>
+          <div style="flex:0 0 auto"><button class="sm" id="dGenClips">④生成片段(图生视频)</button></div>
+          <div style="flex:0 0 auto"><button class="sm" id="dAssemble">⑤合成成片</button></div>
+          <div style="flex:0 0 auto"><button id="dAuto" style="background:var(--acc2)">🚀 一键全自动</button></div>
+          <div style="flex:0 0 auto"><button class="ghost sm" id="dSaveEdits">保存分镜修改</button></div>
+        </div>
+        <div class="hint">「一键全自动」= ②角色图 → ③关键帧 → ④逐镜视频(等全部完成) → ⑤合成成片,中途可在「任务」看每镜进度。</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">
+          <span class="muted" style="font-size:12px">批量抽卡(数量用下方「配音抽卡」的条数):</span>
+          <button class="ghost sm" id="dAllKfTakes">🎰 全镜关键帧</button>
+          <button class="ghost sm" id="dAllClipTakes">🎰 全镜片段</button>
+          <button class="ghost sm" id="dAllMotion">🎬 全镜动态漫(免费/稳)</button>
+          <button class="ghost sm" id="dPrune">🧹 清理未选用候选(省磁盘)</button>
+        </div>
+      </div>
+
+      <div class="card" id="dTakesCard">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h3 style="margin:0">🎰 配音抽卡</h3>
+          <label class="muted" style="font-size:12px">条数 <input id="dTakesN" type="number" min="1" max="8" value="4" style="width:60px"></label>
+          <button class="sm" id="dGenTakes">生成候选配音</button>
+          <span class="muted" style="font-size:12px">单次配音难免不稳定。一次生成多条不同音色/演绎风格,试听后挑最自然的那条,合成时就用它。</span>
+        </div>
+        <div id="dTakesList" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card" id="dFinalCard" style="display:none">
+        <h3>成片</h3>
+        <video id="dFinalVideo" controls preload="metadata" style="width:100%;max-height:520px;border-radius:10px;background:#000"></video>
+        <div><a id="dFinalDl" class="muted" download>⬇ 下载成片</a></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px">
+          <h3 style="margin:0">角色设定 & 音色</h3>
+          <button class="ghost sm" id="dAutoVoice">🎚 按内容自动分配音色</button>
+          <span class="muted" style="font-size:11px">旁白用上面 TTS 的全局音色;每个角色用各自音色</span>
+        </div>
+        <div class="grid" id="dChars" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <h3>分镜(可编辑提示词/旁白/时长)</h3>
+        <div id="dShotsBox"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 任务 ============ -->
+  <section class="view" id="v-tasks">
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <strong>生成任务</strong>
+      <span class="muted">每 2 秒自动刷新。视频生成通常需要 30 秒到几分钟。</span>
+      <div class="sp" style="flex:1"></div>
+      <button class="ghost sm" id="btnRefreshTasks">刷新</button>
+    </div>
+    <div class="grid" id="taskGrid"><div class="empty">还没有任务,去「生成」标签发起吧。</div></div>
+  </section>
+
+  <!-- ============ 历史 ============ -->
+  <section class="view" id="v-history">
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <strong>历史记录</strong><div class="sp" style="flex:1"></div>
+      <button class="ghost sm" id="btnRefreshHist">刷新</button>
+    </div>
+    <div class="grid" id="histGrid"></div>
+  </section>
+
+  <!-- ============ 画廊 ============ -->
+  <section class="view" id="v-gallery">
+    <div class="card" style="display:flex;align-items:center;gap:12px">
+      <strong>本地画廊(outputs/)</strong><div class="sp" style="flex:1"></div>
+      <button class="ghost sm" id="btnRefreshGal">刷新</button>
+    </div>
+    <div class="grid" id="galGrid"></div>
+  </section>
+
+  <!-- ============ 压测 ============ -->
+  <section class="view" id="v-stress">
+    <div class="card">
+      <h3>提交压测(submit)</h3>
+      <div class="hint" style="color:var(--warn)">⚠️ 每次提交都会在上游<strong>真实排队生成一段视频、产生计费/消耗额度</strong>。本压测只压「提交」这一步(衡量网关并发接收能力、提交延迟、限流表现),不等待视频完成。请用小的总数起步。当前服务商:<strong id="stressFmt">—</strong></div>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:3"><label>提示词</label><input id="sPrompt" value="a cat running on the beach, cinematic"></div>
+        <div><label>总次数</label><input id="sTotal" type="number" min="1" value="5"></div>
+        <div><label>并发</label><input id="sConc" type="number" min="1" value="2"></div>
+        <div><label>模型(留空用默认)</label><input id="sModel" placeholder="默认"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+        <button id="btnStress">▶ 开始压测</button>
+        <button class="danger" id="btnStressStop" style="display:none">■ 停止</button>
+        <span class="muted" id="stressMsg"></span>
+      </div>
+    </div>
+    <div class="card" id="stressStatsCard" style="display:none">
+      <h3>实时统计</h3>
+      <div id="stressStats"></div>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="view" id="v-settings">
+    <div class="card" id="ffmpegCard" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="ffDot" style="width:12px;height:12px;border-radius:50%;background:var(--mut);display:inline-block;flex:0 0 auto"></span>
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:700">ffmpeg <span id="ffState" class="muted">检测中…</span></div>
+        <div class="muted" id="ffPath" style="font-size:12px;word-break:break-all"></div>
+      </div>
+      <button class="ghost sm" id="ffRecheck">重新检测</button>
+      <button class="ghost sm" id="ffHelp">安装说明</button>
+      <div class="hint" id="ffHint" style="display:none;width:100%;white-space:pre-wrap"></div>
+    </div>
+
+    <div class="card">
+      <h3>模型测试(不确定某模型能不能用?先测一下)</h3>
+      <div class="row">
+        <div><label>服务商</label><select id="tmProfile"></select></div>
+        <div><label>类型</label><select id="tmKind">
+          <option value="llm">LLM(对话)</option><option value="tts">TTS(配音)</option>
+          <option value="image">图像</option><option value="video">视频(会计费一次)</option></select></div>
+        <div style="flex:2"><label>模型名</label><input id="tmModel" placeholder="如 gemini-3.1-flash-tts-preview"></div>
+        <div id="tmVoiceBox" style="display:none"><label>音色(TTS)</label><input id="tmVoice" placeholder="alloy"></div>
+        <div id="tmFmtBox" style="display:none"><label>生图方式</label><select id="tmFmt"><option value="chat">对话式</option><option value="images">图片接口</option></select></div>
+        <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button id="tmRun">测试</button></div>
+      </div>
+      <div id="tmResult" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3>服务商配置(中转站 / 官方)</h3>
+      <div id="profileList"></div>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:2">
+          <label>配置名</label>
+          <input id="pfName" placeholder="例如:我的中转站 / 可灵官方">
+        </div>
+        <div style="flex:2">
+          <label>服务商预设(决定接口方言)</label>
+          <select id="pfPreset"></select>
+        </div>
+      </div>
+      <div class="hint" id="presetHint"></div>
+      <div class="row">
+        <div style="flex:3">
+          <label>Base URL</label>
+          <input id="pfBase" placeholder="https://...">
+        </div>
+        <div style="flex:2">
+          <label>默认模型</label>
+          <input id="pfModel" list="pfModelList" placeholder="模型 id">
+          <datalist id="pfModelList"></datalist>
+        </div>
+      </div>
+      <div class="row">
+        <div id="pfKeyBox" style="flex:1">
+          <label id="pfKeyLabel">API Key</label>
+          <input id="pfKey" placeholder="sk-... / AccessKey" autocomplete="off">
+        </div>
+        <div id="pfSecretBox" style="flex:1;display:none">
+          <label>Secret Key(可灵 SecretKey)</label>
+          <input id="pfSecret" placeholder="SecretKey" autocomplete="off">
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button id="btnSaveProfile">保存 / 更新配置</button>
+        <span class="muted" id="profileMsg"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>全局默认 & 运行参数</h3>
+      <div class="row">
+        <div><label>默认时长(秒)</label><input id="gDur" type="number" min="1" value="5"></div>
+        <div><label>默认分辨率</label>
+          <select id="gRes"><option>480p</option><option selected>720p</option><option>1080p</option></select></div>
+        <div><label>默认比例</label>
+          <select id="gRatio"><option selected>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>并发任务数(重启生效)</label><input id="gConc" type="number" min="1" max="16" value="3"></div>
+        <div><label>单请求超时(秒)</label><input id="gTimeout" type="number" min="10" value="120"></div>
+        <div><label>轮询间隔(秒)</label><input id="gPoll" type="number" min="2" value="5"></div>
+        <div><label>最长等待(秒)</label><input id="gMaxWait" type="number" min="60" value="900"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button id="btnSaveGlobal">保存全局设置</button>
+        <span class="muted" id="globalMsg"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>对外 API(让别的程序调用本工具)</h3>
+      <p class="hint">本工具可作为一个 OpenAI 兼容的视频网关:外部程序按下面格式提交,本工具用<strong>当前激活的服务商</strong>去生成。设置鉴权 Key 后,调用需带 <code>Authorization: Bearer &lt;key&gt;</code>(留空=不鉴权,仅限本机使用)。</p>
+      <div class="row">
+        <div style="flex:1"><label>对外鉴权 Key(server_api_key,留空关闭鉴权)</label>
+          <input id="gServerKey" placeholder="留空=不鉴权" autocomplete="off"></div>
+        <div style="flex:0 0 auto;display:flex;align-items:flex-end">
+          <button id="btnSaveServerKey">保存</button></div>
+      </div>
+      <div class="hint" style="margin-top:10px">提交(异步,推荐):
+        <pre style="background:var(--panel2);padding:10px;border-radius:8px;overflow:auto;white-space:pre-wrap">curl -X POST http://127.0.0.1:5321/v1/video/generations \
+  -H "Authorization: Bearer &lt;key&gt;" -H "Content-Type: application/json" \
+  -d '{"model":"kling-v2-master","prompt":"a cat surfing","duration":5,"size":"1280x720"}'
+# → {"task_id":"...", "status":"queued"}
+# 轮询:
+curl http://127.0.0.1:5321/v1/video/generations/&lt;task_id&gt; -H "Authorization: Bearer &lt;key&gt;"
+# 完成后返回 {"status":"completed","url":"http://127.0.0.1:5321/outputs/xxx.mp4"}</pre>
+        也兼容 OpenAI Sora 风格:<code>POST /v1/videos</code> → <code>GET /v1/videos/{id}</code> → <code>GET /v1/videos/{id}/content</code>(二进制 mp4)。图生视频:在请求里加 <code>"image":"https://...jpg"</code> 或 data URI。</div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<div id="dubModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;align-items:center;justify-content:center">
+  <div class="card" style="max-width:560px;width:92%;max-height:88vh;overflow:auto;margin:0">
+    <div style="display:flex;align-items:center;gap:8px">
+      <h3 style="margin:0">🎙 给视频重新配音</h3><div style="flex:1"></div>
+      <button class="ghost sm" id="dubClose">关闭</button>
+    </div>
+    <div class="muted" id="dubFile" style="font-size:12px;margin:6px 0"></div>
+    <label>配音文本(要念的台词/旁白)</label>
+    <textarea id="dubText" placeholder="在这里输入要念出来的内容…"></textarea>
+    <div class="row">
+      <div><label>TTS 服务商</label><select id="dubProfile"></select></div>
+      <div><label>TTS 模型</label><input id="dubModel" placeholder="tts-1 / gemini-3.1-flash-tts-preview"></div>
+      <div><label>音色</label><input id="dubVoice" list="dubVoiceList" placeholder="留空自动"><datalist id="dubVoiceList"></datalist></div>
+    </div>
+    <label style="margin-top:6px">语气/风格(让配音更生动,Gemini/gpt-4o-mini-tts 有效)</label>
+    <input id="dubStyle" placeholder="如:用悬疑剧旁白的语气,低沉、有张力,适当停顿" value="用富有感情、自然、抑扬顿挫的旁白语气朗读,注意停顿和节奏">
+    <label style="margin-top:8px"><input type="checkbox" id="dubSubs" style="width:auto"> 同时把这段文本烧成字幕</label>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+      <button id="dubRun">开始配音</button>
+      <button class="ghost sm" id="dubTest">先试听音色</button>
+      <span class="muted" id="dubMsg"></span>
+    </div>
+    <div id="dubResult" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let PRESETS=[], CFG={}, MODE='t2v', PROFILES=[], ADVMAP={};
+const files={first:null,last:null};
+function renderAdv(fmt){
+  const fields=ADVMAP[fmt]||[];const box=$('#advFields');box.innerHTML='';
+  $('#advBox').style.display=fields.length?'block':'none';
+  fields.forEach(f=>{
+    const d=document.createElement('div');d.style.minWidth='150px';
+    let ctrl='';
+    if(f.type==='tribool'){
+      ctrl=`<select data-advk="${f.key}" data-advt="bool"><option value="">默认</option><option value="true">开</option><option value="false">关</option></select>`;
+    }else if(f.type==='select'){
+      ctrl=`<select data-advk="${f.key}" data-advt="str">`+(f.options||[]).map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')+`</select>`;
+    }else{
+      const t=(f.type==='int'||f.type==='float')?'number':'text';
+      ctrl=`<input type="${t}" ${f.type==='float'?'step="0.1"':''} data-advk="${f.key}" data-advt="${f.type}" placeholder="${f.placeholder||''}">`;
+    }
+    d.innerHTML=`<label style="margin-top:0">${f.label}</label>${ctrl}`;box.appendChild(d);
+  });
+}
+function collectAdv(){
+  const o={};
+  $$('#advFields [data-advk]').forEach(el=>{
+    const k=el.dataset.advk,t=el.dataset.advt,v=el.value;
+    if(v===''||v==null)return;
+    if(t==='bool')o[k]=(v==='true');
+    else if(t==='int')o[k]=parseInt(v,10);
+    else if(t==='float')o[k]=parseFloat(v);
+    else o[k]=v;
+  });
+  return o;
+}
+function fmtCaps(fmt){const p=PRESETS.find(x=>x.format===fmt);return (p&&p.caps)||{durations:[],resolutions:[],ratios:[],i2v:true};}
+function profByName(n){return PROFILES.find(p=>p.name===n);}
+function fillDL(id,arr){const dl=$('#'+id);dl.innerHTML='';(arr||[]).forEach(v=>{const o=document.createElement('option');o.value=v;dl.appendChild(o);});}
+
+function toast(msg,kind=''){const t=$('#toast');t.className='toast '+kind;t.textContent=msg;
+  t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',4200);}
+async function api(url,opt){const r=await fetch(url,opt);let d={};try{d=await r.json()}catch(e){}
+  if(!r.ok)throw new Error((d.error&&d.error.message)||('HTTP '+r.status));return d;}
+
+// ---------- tabs ----------
+$$('.tab').forEach(t=>t.onclick=()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
+  $$('.view').forEach(v=>v.classList.remove('active'));$('#v-'+t.dataset.v).classList.add('active');
+  if(t.dataset.v==='history')loadHistory();
+  if(t.dataset.v==='gallery')loadGallery();
+  if(t.dataset.v==='stress'){$('#stressFmt').textContent=(CFG.active_profile||'未配置')+' · '+(CFG.format||'—');loadStress();}
+  if(t.dataset.v==='drama')initDrama();
+  if(t.dataset.v==='settings'){loadFfmpeg();fillTmProfiles();syncTmKind();}
+});
+
+// ---------- mode ----------
+$$('#modeSeg button').forEach(b=>b.onclick=()=>{
+  $$('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  MODE=b.dataset.mode;$('#i2vBox').style.display=MODE==='i2v'?'block':'none';
+});
+
+// ---------- provider picker drives model/param suggestions ----------
+function syncGenProvider(){
+  const p=profByName($('#genProfile').value);
+  if(!p){$('#capHint').textContent='';return;}
+  const preset=PRESETS.find(x=>x.format===p.format);
+  fillDL('modelList',(preset&&preset.models)||[]);
+  if(p.model){$('#model').placeholder='默认:'+p.model;}else{$('#model').placeholder='默认';}
+  const caps=fmtCaps(p.format);
+  fillDL('durationList',caps.durations);
+  fillDL('resolutionList',caps.resolutions);
+  fillDL('ratioList',caps.ratios);
+  $('#capHint').textContent=`${p.format} · 建议时长 ${caps.durations.join('/')||'—'}s · 分辨率 ${caps.resolutions.join('/')||'随模型'} · 比例 ${caps.ratios.join('/')||'—'}${caps.i2v?'':' · 不支持图生视频'}`;
+  renderAdv(p.format);
+}
+$('#genProfile').onchange=syncGenProvider;
+
+// ---------- image upload ----------
+function bindDrop(dropId,fileId,key){
+  const d=$('#'+dropId),f=$('#'+fileId);
+  d.onclick=()=>f.click();
+  f.onchange=()=>{if(f.files[0]){files[key]=f.files[0];renderThumbs();d.classList.add('has');d.firstChild.textContent='已选:'+f.files[0].name;}};
+  d.ondragover=e=>{e.preventDefault();d.classList.add('has')};
+  d.ondragleave=()=>{if(!files[key])d.classList.remove('has')};
+  d.ondrop=e=>{e.preventDefault();const fl=e.dataTransfer.files[0];if(fl){files[key]=fl;f.files=e.dataTransfer.files;renderThumbs();d.firstChild.textContent='已选:'+fl.name;}};
+}
+function renderThumbs(){const box=$('#thumbs');box.innerHTML='';
+  for(const k of ['first','last']){if(files[k]){const img=document.createElement('img');
+    img.src=URL.createObjectURL(files[k]);box.appendChild(img);}}}
+bindDrop('dropFirst','firstFile','first');bindDrop('dropLast','lastFile','last');
+
+// ---------- 就地模型测试(各模型框旁的「测」) ----------
+async function quickTest(profile, kind, model, extra){
+  if(!profile){toast('请先选服务商','err');return;}
+  if(!model){toast('请先填模型名(或留空用默认时无法测,请填一个)','err');return;}
+  if(kind==='video'&&!confirm('视频测试会真实提交一次生成(计费)。确定测?'))return;
+  toast('测试中…（'+kind+' / '+model+'）');
+  try{const d=await api('/api/test-model',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(Object.assign({profile,kind,model},extra||{}))});
+    toast((d.ok?'✓ 可用 · ':'✗ 不可用 · ')+(d.detail||''), d.ok?'ok':'err');
+  }catch(e){toast(e.message,'err');}
+}
+$('#modelTest').onclick=()=>{const pf=$('#genProfile').value;const m=$('#model').value.trim()||((profByName(pf)||{}).model||'');quickTest(pf,'video',m);};
+$('#dLlmTest').onclick=()=>quickTest($('#dLlmProfile').value,'llm',$('#dLlmModel').value.trim());
+$('#dImgTest').onclick=()=>quickTest($('#dImgProfile').value,'image',$('#dImgModel').value.trim(),{image_format:$('#dImgFormat').value});
+$('#dVidTest').onclick=()=>quickTest($('#dVidProfile').value,'video',$('#dVidModel').value.trim());
+$('#dTtsTest').onclick=()=>quickTest($('#dTtsProfile').value,'tts',$('#dTtsModel').value.trim(),{voice:$('#dTtsVoice').value});
+
+// ---------- generate ----------
+$('#btnGen').onclick=async()=>{
+  const prompt=$('#prompt').value.trim();
+  if(!prompt){toast('请输入提示词','err');return;}
+  const lines=prompt.split('\n').map(s=>s.trim()).filter(Boolean);
+  const fd=new FormData();
+  fd.append('prompts',JSON.stringify(lines));
+  fd.append('mode',MODE);
+  if($('#genProfile').value)fd.append('profile',$('#genProfile').value);
+  fd.append('negative_prompt',$('#negPrompt').value);
+  if($('#model').value)fd.append('model',$('#model').value);
+  if($('#duration').value)fd.append('duration',$('#duration').value);
+  if($('#resolution').value)fd.append('resolution',$('#resolution').value);
+  if($('#ratio').value)fd.append('ratio',$('#ratio').value);
+  fd.append('repeat',$('#repeat').value||'1');
+  let extraObj={};
+  if($('#extra').value.trim()){try{extraObj=JSON.parse($('#extra').value.trim());}catch(e){toast('附加参数 extra 不是合法 JSON','err');return;}}
+  Object.assign(extraObj, collectAdv());   // 高级参数并入 extra(高级参数优先)
+  if(Object.keys(extraObj).length)fd.append('extra',JSON.stringify(extraObj));
+  if(MODE==='i2v'){
+    if(files.first)fd.append('first_image',files.first);
+    if(files.last)fd.append('last_image',files.last);
+    if($('#firstUrl').value)fd.append('first_frame_url',$('#firstUrl').value);
+    if($('#lastUrl').value)fd.append('last_frame_url',$('#lastUrl').value);
+  }
+  $('#btnGen').disabled=true;$('#genMsg').textContent='提交中...';
+  try{
+    const d=await api('/api/generate',{method:'POST',body:fd});
+    toast('已提交 '+d.tasks.length+' 个任务','ok');
+    $('#genMsg').textContent='已提交 '+d.tasks.length+' 个,切到「任务」看进度';
+    $$('.tab')[1].click();loadTasks();
+  }catch(e){toast(e.message,'err');$('#genMsg').textContent='';}
+  finally{$('#btnGen').disabled=false;}
+};
+
+$('#btnFav').onclick=async()=>{
+  const p=$('#prompt').value.trim();if(!p){toast('提示词为空','err');return;}
+  try{await api('/api/favorites',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({prompt:p.split('\n')[0]})});toast('已收藏','ok');loadFavorites();}
+  catch(e){toast(e.message,'err');}
+};
+
+// ---------- tasks ----------
+let pollTimer=null;
+function fmtTime(s){if(!s)return'';const d=new Date(s*1000);return d.toLocaleTimeString();}
+function labelStatus(s){return{queued:'排队',submitting:'提交中',processing:'生成中',downloading:'下载中',done:'完成',error:'失败'}[s]||s;}
+function esc(s){return(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+// 增量渲染:视频元素只建一次,避免轮询时整块重建导致视频反复重载(闪烁)。
+const taskEls={};
+function taskMediaHtml(t){
+  if(t.status==='done'&&t.videos&&t.videos.length)
+    return t.videos.map(v=>`<video src="${v.url}" controls preload="metadata"></video><div><a class="muted" href="${v.url}" download>⬇ 下载 ${v.filename}</a></div>`).join('');
+  if(t.status==='error')return `<div class="err">${esc(t.error||'失败')}</div>`;
+  return `<div class="bar"><i style="width:${t.progress||5}%"></i></div><div class="pr">${esc(t.stage||'')} ${t.progress?('· '+t.progress+'%'):''}</div>`;
+}
+function taskMediaKey(t){
+  if(t.status==='done')return 'v:'+((t.videos||[]).map(v=>v.filename).join(','));
+  if(t.status==='error')return 'e:'+(t.error||'');
+  return 'p:'+(t.stage||'')+':'+(t.progress||0);
+}
+function buildTaskCard(t){
+  const el=document.createElement('div');el.className='tcard';
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="st ${t.status} t-st">${labelStatus(t.status)}</span>
+      <span class="muted" style="font-size:11px">${t.format} · ${t.mode}</span>
+      <div style="flex:1"></div>
+      <span class="muted" style="font-size:11px">${fmtTime(t.created_at)}</span>
+    </div>
+    <div style="font-size:13px;max-height:60px;overflow:auto">${esc(t.prompt)}</div>
+    <div class="t-media"></div>
+    <div class="muted" style="font-size:11px">${esc(t.model||'')} ${t.duration?('· '+t.duration+'s'):''} ${t.resolution||''} ${t.ratio||''}</div>`;
+  return el;
+}
+function updateTaskCard(el,t){
+  const st=el.querySelector('.t-st');st.className='st '+t.status+' t-st';st.textContent=labelStatus(t.status);
+  const key=taskMediaKey(t);
+  if(el._mkey!==key){el._mkey=key;el.querySelector('.t-media').innerHTML=taskMediaHtml(t);}
+}
+async function loadTasks(){
+  try{const d=await api('/api/tasks');const g=$('#taskGrid');
+    const active=d.tasks.filter(t=>['queued','submitting','processing','downloading'].includes(t.status)).length;
+    $('#taskBadge').textContent=active?('('+active+')'):'';
+    if(!d.tasks.length){g.innerHTML='<div class="empty">还没有任务,去「生成」标签发起吧。</div>';for(const k in taskEls)delete taskEls[k];return;}
+    if(g.querySelector('.empty'))g.innerHTML='';
+    const ids=new Set(d.tasks.map(t=>t.id));
+    for(const id in taskEls){if(!ids.has(id)){taskEls[id].remove();delete taskEls[id];}}
+    d.tasks.forEach(t=>{let el=taskEls[t.id];if(!el){el=buildTaskCard(t);taskEls[t.id]=el;}updateTaskCard(el,t);g.appendChild(el);});
+  }catch(e){}
+}
+function startPoll(){if(pollTimer)return;pollTimer=setInterval(loadTasks,2000);}
+$('#btnRefreshTasks').onclick=loadTasks;
+
+// ---------- history / gallery / favorites ----------
+async function loadHistory(){
+  try{const d=await api('/api/history');const g=$('#histGrid');
+    if(!d.history.length){g.innerHTML='<div class="empty">暂无历史</div>';return;}
+    g.innerHTML='';d.history.forEach(h=>{
+      const el=document.createElement('div');el.className='tcard';
+      const vid=h.videos&&h.videos[0];
+      el.innerHTML=`${vid?`<video src="${vid.url}" controls preload="metadata"></video>`:''}
+        <div style="font-size:13px;max-height:48px;overflow:auto">${esc(h.prompt)}</div>
+        <div class="muted" style="font-size:11px">${h.format||''} · ${h.model||''} · ${h.duration||''}s ${h.resolution||''} ${h.ratio||''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ghost sm" data-use="${esc(h.prompt)}">复用</button>
+          ${vid?`<button class="ghost sm" data-dub="${vid.filename}">🎙 配音</button>`:''}
+          <button class="danger sm" data-del="${h.id}">删除</button>
+        </div>`;
+      el.querySelector('[data-use]').onclick=()=>{$('#prompt').value=h.prompt;$$('.tab')[0].click();toast('已填入提示词','ok');};
+      if(vid)el.querySelector('[data-dub]').onclick=()=>openDub(vid.filename);
+      el.querySelector('[data-del]').onclick=async()=>{await api('/api/history/'+h.id+'?with_files=true',{method:'DELETE'});loadHistory();};
+      g.appendChild(el);
+    });
+  }catch(e){toast(e.message,'err');}
+}
+async function loadGallery(){
+  try{const d=await api('/api/gallery');const g=$('#galGrid');
+    if(!d.videos.length){g.innerHTML='<div class="empty">outputs/ 里还没有视频</div>';return;}
+    g.innerHTML='';d.videos.forEach(v=>{const el=document.createElement('div');el.className='tcard';
+      el.innerHTML=`<video src="${v.url}" controls preload="metadata"></video>
+        <div style="display:flex;gap:8px;align-items:center"><a class="muted" href="${v.url}" download>⬇ ${v.filename}</a><div style="flex:1"></div><button class="ghost sm" data-dub="${v.filename}">🎙 配音</button></div>`;
+      el.querySelector('[data-dub]').onclick=()=>openDub(v.filename);g.appendChild(el);});
+  }catch(e){}
+}
+async function loadFavorites(){
+  try{const d=await api('/api/favorites');const box=$('#favList');
+    if(!d.favorites.length){box.innerHTML='<span class="muted">暂无收藏</span>';return;}
+    box.innerHTML='';d.favorites.forEach(f=>{const p=document.createElement('span');p.className='pill';
+      p.style.margin='4px 6px 0 0';p.innerHTML=`<span style="cursor:pointer">${esc(f.prompt.slice(0,40))}</span> <b data-del="${f.id}" style="cursor:pointer;color:var(--err)">×</b>`;
+      p.firstChild.onclick=()=>{$('#prompt').value=f.prompt;toast('已填入','ok');};
+      p.querySelector('[data-del]').onclick=async()=>{await api('/api/favorites/'+f.id,{method:'DELETE'});loadFavorites();};
+      box.appendChild(p);});
+  }catch(e){}
+}
+
+// ---------- stress ----------
+let stressTimer=null;
+$('#btnStress').onclick=async()=>{
+  const body={prompt:$('#sPrompt').value,total:+$('#sTotal').value,concurrency:+$('#sConc').value};
+  if($('#sModel').value)body.model=$('#sModel').value;
+  if(body.total>20&&!confirm('将提交 '+body.total+' 个真实视频任务,会产生计费/消耗额度。确定继续?'))return;
+  try{const d=await api('/api/stress/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    toast('压测开始:'+d.total+' 次 / 并发 '+d.concurrency,'ok');
+    $('#stressStatsCard').style.display='block';startStressPoll();
+  }catch(e){toast(e.message,'err');}
+};
+$('#btnStressStop').onclick=async()=>{await api('/api/stress/stop',{method:'POST'});toast('已请求停止','ok');};
+function startStressPoll(){if(stressTimer)return;stressTimer=setInterval(loadStress,1000);}
+async function loadStress(){
+  try{const s=await api('/api/stress/status');
+    if(s.status==='idle'){$('#stressStatsCard').style.display='none';if(stressTimer){clearInterval(stressTimer);stressTimer=null;}return;}
+    $('#stressStatsCard').style.display='block';
+    const running=s.status==='running';
+    $('#btnStress').disabled=running;$('#btnStressStop').style.display=running?'inline-block':'none';
+    if(!running&&stressTimer){clearInterval(stressTimer);stressTimer=null;}
+    const errRows=Object.entries(s.errors||{}).map(([k,v])=>`<tr><td style="color:var(--err)">${esc(k)}</td><td style="text-align:right">${v}</td></tr>`).join('');
+    const pct=s.total?Math.round(s.done/s.total*100):0;
+    $('#stressStats').innerHTML=`
+      <div class="bar" style="margin-bottom:10px"><i style="width:${pct}%"></i></div>
+      <div class="row">
+        <div><div class="muted">状态</div><b>${labelStress(s.status)}</b></div>
+        <div><div class="muted">进度</div><b>${s.done}/${s.total}</b></div>
+        <div><div class="muted">成功</div><b style="color:var(--ok)">${s.ok}</b></div>
+        <div><div class="muted">失败</div><b style="color:var(--err)">${s.fail}</b></div>
+        <div><div class="muted">提交 RPS</div><b>${s.rps}</b></div>
+        <div><div class="muted">耗时</div><b>${s.elapsed}s</b></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div><div class="muted">延迟 平均</div><b>${s.lat_avg}ms</b></div>
+        <div><div class="muted">P50</div><b>${s.lat_p50}ms</b></div>
+        <div><div class="muted">P95</div><b>${s.lat_p95}ms</b></div>
+        <div><div class="muted">最小/最大</div><b>${s.lat_min}/${s.lat_max}ms</b></div>
+        <div><div class="muted">模型</div><b>${esc(s.model||'')}</b></div>
+      </div>
+      ${errRows?`<table style="width:100%;margin-top:12px;font-size:12px;border-collapse:collapse"><thead><tr><td class="muted">错误</td><td class="muted" style="text-align:right">次数</td></tr></thead><tbody>${errRows}</tbody></table>`:''}
+      ${s.error?`<div class="err" style="margin-top:8px">${esc(s.error)}</div>`:''}`;
+  }catch(e){}
+}
+function labelStress(s){return{running:'运行中',done:'完成',cancelled:'已停止',error:'出错',idle:'空闲'}[s]||s;}
+
+// ---------- ffmpeg 状态灯 ----------
+async function loadFfmpeg(){
+  $('#ffState').textContent='检测中…';$('#ffDot').style.background='var(--mut)';
+  try{const d=await api('/api/ffmpeg');
+    if(d.ok){$('#ffDot').style.background='var(--ok)';$('#ffState').innerHTML='<span style="color:var(--ok)">已就绪</span> · 合成成片可用';
+      $('#ffPath').textContent='ffmpeg: '+(d.ffmpeg||'')+(d.ffprobe?('  |  ffprobe: '+d.ffprobe):'');}
+    else{$('#ffDot').style.background='var(--err)';$('#ffState').innerHTML='<span style="color:var(--err)">未检测到</span> · 漫剧「合成成片」不可用(前四步不受影响)';
+      $('#ffPath').textContent='把 ffmpeg.exe、ffprobe.exe 放到:'+(d.bin_dir||'bin/')+' 即可,无需改 PATH';}
+    $('#ffHint').textContent=d.hint||'';
+    if(DMETA)DMETA.ffmpeg=d.ok;  // 同步给漫剧页
+  }catch(e){$('#ffState').textContent='检测失败';}
+}
+$('#ffRecheck').onclick=loadFfmpeg;
+$('#ffHelp').onclick=()=>{const h=$('#ffHint');h.style.display=h.style.display==='none'?'block':'none';};
+
+// ---------- 给已有视频配音 ----------
+let dubFile=null;
+async function openDub(filename){
+  dubFile=filename;$('#dubFile').textContent='视频:'+filename;$('#dubResult').innerHTML='';$('#dubMsg').textContent='';
+  if(!DMETA){try{DMETA=await api('/api/drama/meta');}catch(e){}}
+  const sel=$('#dubProfile');const prev=sel.value;sel.innerHTML='';
+  PROFILES.forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name+' · '+p.format;sel.appendChild(o);});
+  if(prev&&[...sel.options].some(o=>o.value===prev))sel.value=prev;
+  fillDL('dubVoiceList',(DMETA&&DMETA.tts_voices)||['alloy','Kore']);
+  $('#dubModal').style.display='flex';
+}
+$('#dubClose').onclick=()=>{$('#dubModal').style.display='none';};
+$('#dubModal').onclick=(e)=>{if(e.target===$('#dubModal'))$('#dubModal').style.display='none';};
+$('#dubTest').onclick=()=>{const m=$('#dubModel').value.trim();if(!m){toast('请先填 TTS 模型','err');return;}
+  quickTest($('#dubProfile').value,'tts',m,{voice:$('#dubVoice').value.trim()||undefined,style:$('#dubStyle').value.trim()||undefined,text:$('#dubText').value.trim()||'这是音色试听。'});};
+$('#dubRun').onclick=async()=>{
+  if(!dubFile)return;const text=$('#dubText').value.trim();
+  if(!text){toast('请填配音文本','err');return;}
+  if(!$('#dubModel').value.trim()){toast('请填 TTS 模型','err');return;}
+  $('#dubRun').disabled=true;$('#dubMsg').textContent='配音合成中(TTS+合成,约 10-30 秒)…';$('#dubResult').innerHTML='';
+  try{
+    const d=await api('/api/dub',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      filename:dubFile,text,tts_profile:$('#dubProfile').value,tts_model:$('#dubModel').value.trim(),
+      tts_voice:$('#dubVoice').value.trim()||undefined,style:$('#dubStyle').value.trim()||undefined,subtitles:$('#dubSubs').checked})});
+    $('#dubMsg').textContent='完成';
+    $('#dubResult').innerHTML=`<video src="${d.url}" controls preload="metadata" style="width:100%;border-radius:8px"></video>
+      <div><a class="muted" href="${d.url}" download>⬇ 下载配音版</a> · 也已存入画廊</div>`;
+    toast('配音完成','ok');
+  }catch(e){$('#dubMsg').textContent='';toast(e.message,'err');$('#dubResult').innerHTML=`<div class="err">${esc(e.message)}</div>`;}
+  finally{$('#dubRun').disabled=false;}
+};
+
+// ---------- 模型测试 ----------
+function syncTmKind(){const k=$('#tmKind').value;$('#tmVoiceBox').style.display=k==='tts'?'block':'none';$('#tmFmtBox').style.display=k==='image'?'block':'none';}
+$('#tmKind').onchange=syncTmKind;
+function fillTmProfiles(){const sel=$('#tmProfile');const prev=sel.value;sel.innerHTML='';
+  PROFILES.forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name+' · '+p.format;sel.appendChild(o);});
+  if(prev&&[...sel.options].some(o=>o.value===prev))sel.value=prev;}
+$('#tmRun').onclick=async()=>{
+  const body={profile:$('#tmProfile').value,kind:$('#tmKind').value,model:$('#tmModel').value.trim(),
+    voice:$('#tmVoice').value.trim()||undefined,image_format:$('#tmFmt').value};
+  if(!body.model){toast('请填模型名','err');return;}
+  const r=$('#tmResult');r.innerHTML='<span class="muted">测试中…</span>';$('#tmRun').disabled=true;
+  try{const d=await api('/api/test-model',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(d.ok){let extra='';
+      if(d.audio_url)extra=`<audio controls src="${d.audio_url}" style="display:block;margin-top:8px"></audio>`;
+      if(d.image_url)extra=`<img src="${d.image_url}" style="max-height:160px;border-radius:8px;margin-top:8px">`;
+      r.innerHTML=`<span class="pill" style="border-color:var(--ok);color:var(--ok)">✓ 可用</span> <span class="muted">${esc(d.detail||'')}</span>${extra}`;
+    }else{r.innerHTML=`<span class="pill" style="border-color:var(--err);color:var(--err)">✗ 不可用</span> <div class="err" style="margin-top:6px;font-size:12px">${esc(d.detail||'')}</div>`;}
+  }catch(e){r.innerHTML=`<div class="err">${esc(e.message)}</div>`;}
+  finally{$('#tmRun').disabled=false;}
+};
+
+// ---------- server api key ----------
+$('#btnSaveServerKey').onclick=async()=>{
+  try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({server_api_key:$('#gServerKey').value.trim()})});
+    await refreshAll();toast($('#gServerKey').value.trim()?'已设置对外鉴权':'已关闭对外鉴权','ok');}
+  catch(e){toast(e.message,'err');}
+};
+
+// ---------- settings: presets & profiles ----------
+function presetById(id){return PRESETS.find(p=>p.id===id)||PRESETS[0];}
+function applyPreset(p){
+  $('#presetHint').textContent=p.hint||'';
+  $('#pfBase').value=p.base_url||'';
+  $('#pfSecretBox').style.display=p.needs_secret?'block':'none';
+  $('#pfKeyLabel').textContent=p.needs_secret?'Access Key':'API Key';
+  const dl=$('#pfModelList');dl.innerHTML='';(p.models||[]).forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});
+  if(p.models&&p.models[0]&&!$('#pfModel').value)$('#pfModel').value=p.models[0];
+}
+$('#pfPreset').onchange=()=>applyPreset(presetById($('#pfPreset').value));
+
+async function loadProfiles(){
+  const d=await api('/api/profiles');PROFILES=d.profiles;
+  // 生成区的服务商下拉
+  const gp=$('#genProfile');const prev=gp.value;gp.innerHTML='';
+  d.profiles.forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name+' · '+p.format;gp.appendChild(o);});
+  gp.value=(d.profiles.some(p=>p.name===prev)?prev:(d.active||(d.profiles[0]&&d.profiles[0].name)||''));
+  syncGenProvider();
+  const box=$('#profileList');box.innerHTML='';
+  if(!d.profiles.length){box.innerHTML='<div class="muted">还没有配置,下面新建一个。</div>';}
+  d.profiles.forEach(p=>{
+    const el=document.createElement('div');el.className='pf'+(p.name===d.active?' on':'');
+    el.innerHTML=`<div><div class="nm">${esc(p.name)} ${p.name===d.active?'<span class="muted">· 当前</span>':''}</div>
+      <div class="meta">${p.format} · ${p.model||'无默认模型'} · ${esc(p.base_url||'')||'(默认地址)'}</div></div>
+      <div class="sp" style="flex:1"></div>
+      ${p.name===d.active?'':`<button class="ghost sm" data-act="${esc(p.name)}">切换</button>`}
+      <button class="ghost sm" data-edit="${esc(p.name)}">编辑</button>
+      <button class="danger sm" data-del="${esc(p.name)}">删除</button>`;
+    el.querySelector('[data-act]')&&(el.querySelector('[data-act]').onclick=async()=>{
+      await api('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:p.name})});
+      await refreshAll();toast('已切换到 '+p.name,'ok');});
+    el.querySelector('[data-edit]').onclick=()=>{
+      $('#pfName').value=p.name;
+      const pr=PRESETS.find(x=>x.format===p.format)||presetById('newapi');
+      $('#pfPreset').value=pr.id;applyPreset(pr);
+      $('#pfBase').value=p.base_url;$('#pfModel').value=p.model;$('#pfKey').value='';$('#pfSecret').value='';
+      $('#pfName').scrollIntoView({behavior:'smooth'});};
+    el.querySelector('[data-del]').onclick=async()=>{if(!confirm('删除配置 '+p.name+'?'))return;
+      await api('/api/profiles/'+encodeURIComponent(p.name),{method:'DELETE'});await refreshAll();};
+    box.appendChild(el);
+  });
+}
+
+$('#btnSaveProfile').onclick=async()=>{
+  const name=$('#pfName').value.trim();if(!name){toast('请填配置名','err');return;}
+  const preset=presetById($('#pfPreset').value);
+  const body={name,format:preset.format,base_url:$('#pfBase').value.trim(),model:$('#pfModel').value.trim()};
+  if($('#pfKey').value.trim())body.api_key=$('#pfKey').value.trim();
+  if($('#pfSecret').value.trim())body.secret_key=$('#pfSecret').value.trim();
+  try{
+    await api('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    // 新建后自动激活,方便直接用
+    await api('/api/profiles/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    $('#pfKey').value='';$('#pfSecret').value='';
+    await refreshAll();toast('已保存并激活:'+name,'ok');$('#profileMsg').textContent='已保存 '+name;
+  }catch(e){toast(e.message,'err');}
+};
+
+$('#btnSaveGlobal').onclick=async()=>{
+  const body={
+    default_duration:+$('#gDur').value,default_resolution:$('#gRes').value,default_ratio:$('#gRatio').value,
+    concurrency:+$('#gConc').value,timeout:+$('#gTimeout').value,poll_interval:+$('#gPoll').value,max_wait:+$('#gMaxWait').value,
+  };
+  try{await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    await refreshAll();toast('已保存全局设置','ok');$('#globalMsg').textContent='已保存(并发改动需重启生效)';}
+  catch(e){toast(e.message,'err');}
+};
+
+// ---------- 漫剧 ----------
+let DMETA=null, DPROJ=null, dramaTimer=null, dramaInited=false;
+function optList(sel,arr,val){const e=$('#'+sel);const prev=e.value;e.innerHTML='';
+  (arr||[]).forEach(x=>{const o=document.createElement('option');o.value=x.value!==undefined?x.value:x;o.textContent=x.label!==undefined?x.label:x;e.appendChild(o);});
+  if(val&&[...e.options].some(o=>o.value===val))e.value=val; else if(prev&&[...e.options].some(o=>o.value===prev))e.value=prev;}
+function profNames(){return PROFILES.map(p=>p.name);}
+
+async function initDrama(){
+  if(!PROFILES.length)await loadProfiles();
+  if(!DMETA){try{DMETA=await api('/api/drama/meta');}catch(e){DMETA={};}}
+  // ffmpeg 提示
+  if(DMETA&&DMETA.ffmpeg===false){$('#dFfmpegWarn').style.display='block';$('#dFfmpegWarn').textContent='⚠ '+DMETA.ffmpeg_hint;}
+  // 服务商下拉(各步骤)
+  ['dLlmProfile','dImgProfile','dVidProfile','dTtsProfile'].forEach(id=>optList(id,profNames()));
+  optList('dImgFormat',(DMETA&&DMETA.image_formats)||[{value:'chat',label:'对话式'},{value:'images',label:'图片接口'}]);
+  optList('dTtsVoice',(DMETA&&DMETA.tts_voices)||['alloy']);
+  optList('dTransition',(DMETA&&DMETA.transitions)||[{value:'none',label:'无'}]);
+  optList('dMotion',((DMETA&&DMETA.motions)||[{id:'auto',label:'自动'}]).map(m=>({value:m.id,label:m.label})));
+  fillDL('dImgModelList',(DMETA&&DMETA.suggest&&DMETA.suggest.image_models)||[]);
+  fillDL('dVidModelList',(DMETA&&DMETA.suggest&&DMETA.suggest.video_models)||[]);
+  if(!dramaInited){dramaInited=true;}
+  await loadDramaProjects();
+}
+async function loadDramaProjects(){
+  try{const d=await api('/api/drama/projects');const sel=$('#dProjectPicker');sel.innerHTML='';
+    if(!d.projects.length){const o=document.createElement('option');o.textContent='(暂无项目)';o.value='';sel.appendChild(o);}
+    d.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=`${p.title||'未命名'} · ${p.shots}镜 · ${p.status}`;sel.appendChild(o);});
+  }catch(e){}
+}
+function dramaSettings(){
+  return {
+    llm_profile:$('#dLlmProfile').value, llm_model:$('#dLlmModel').value||null,
+    image_profile:$('#dImgProfile').value, image_format:$('#dImgFormat').value,
+    image_model:$('#dImgModel').value||null, image_size:$('#dImgSize').value||null,
+    video_profile:$('#dVidProfile').value, video_model:$('#dVidModel').value||null,
+    resolution:$('#dVidRes').value||'720p', fps:+($('#dFps').value||24), motion:$('#dMotion').value||'auto',
+    tts_profile:$('#dTtsProfile').value, tts_model:$('#dTtsModel').value||'tts-1',
+    tts_voice:$('#dTtsVoice').value, tts_style:$('#dTtsStyle').value||'', font:$('#dFont').value||'Microsoft YaHei',
+    transition:$('#dTransition').value||'none', transition_dur:+($('#dTransDur').value||0.5),
+  };
+}
+function assembleOptions(){return {tts:$('#dTts').checked, subtitles:$('#dSubs').checked,
+  tts_style:$('#dTtsStyle').value||'', tts_auto:$('#dTtsAuto').checked, tts_enhance:$('#dTtsEnhance').checked,
+  transition:$('#dTransition').value||'none', transition_dur:+($('#dTransDur').value||0.5)};}
+$('#dGenStoryboard').onclick=async()=>{
+  const idea=$('#dIdea').value.trim();if(!idea){toast('请填故事创意','err');return;}
+  if(!$('#dLlmProfile').value){toast('请先在设置里建一个服务商,并在上面选择分镜LLM','err');return;}
+  $('#dGenStoryboard').disabled=true;$('#dMsg').textContent='正在生成分镜(LLM 思考中,约 10-40 秒)...';
+  try{
+    const p=await api('/api/drama/projects',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({idea,settings:dramaSettings(),n_shots:+$('#dShots').value,aspect_ratio:$('#dRatio').value,style_hint:$('#dStyle').value})});
+    DPROJ=p;renderProject(p);$('#dMsg').textContent='分镜已生成,可编辑后逐步生成';await loadDramaProjects();
+  }catch(e){toast(e.message,'err');$('#dMsg').textContent='';}
+  finally{$('#dGenStoryboard').disabled=false;}
+};
+$('#dLoadProject').onclick=async()=>{const id=$('#dProjectPicker').value;if(!id)return;
+  try{DPROJ=await api('/api/drama/projects/'+id);renderProject(DPROJ);applySettingsToForm(DPROJ.settings);}catch(e){toast(e.message,'err');}};
+$('#dDeleteProject').onclick=async()=>{const id=$('#dProjectPicker').value;if(!id)return;if(!confirm('删除该漫剧项目?'))return;
+  await api('/api/drama/projects/'+id,{method:'DELETE'});$('#dStage').style.display='none';DPROJ=null;await loadDramaProjects();};
+function applySettingsToForm(s){if(!s)return;const set=(id,v)=>{if(v!=null&&$('#'+id))$('#'+id).value=v;};
+  set('dLlmProfile',s.llm_profile);set('dLlmModel',s.llm_model);set('dImgProfile',s.image_profile);
+  set('dImgFormat',s.image_format);set('dImgModel',s.image_model);set('dImgSize',s.image_size);
+  set('dVidProfile',s.video_profile);set('dVidModel',s.video_model);set('dVidRes',s.resolution);set('dFps',s.fps);if(s.motion)set('dMotion',s.motion);
+  set('dTtsProfile',s.tts_profile);set('dTtsModel',s.tts_model);set('dTtsVoice',s.tts_voice);set('dFont',s.font);
+  if(s.tts_style)set('dTtsStyle',s.tts_style);
+  set('dTransition',s.transition);set('dTransDur',s.transition_dur);}
+
+function shotMediaHtml(s){
+  if(s.clip)return `<video src="/outputs/${s.clip}" controls preload="metadata" style="width:100%;border-radius:8px;max-height:260px"></video>`;
+  if(s.keyframe)return `<img src="/outputs/${s.keyframe}" style="width:100%;border-radius:8px;max-height:260px;object-fit:contain;background:#000">`;
+  return '<div class="muted" style="padding:20px;text-align:center">未生成关键帧</div>';
+}
+function shotMediaKey(s){return s.clip?('c:'+s.clip):(s.keyframe?('k:'+s.keyframe):'none');}
+function paintJob(p){
+  const j=p.job||{};const jb=$('#dJob');
+  const auto=p.auto?'<span class="pill" style="border-color:var(--acc2);color:#c4b5fd">🚀 一键全自动进行中</span> ':'';
+  if(j.status==='running'){const pct=j.total?Math.round((j.progress||0)/j.total*100):20;
+    jb.innerHTML=`${auto}<div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div><div class="muted" style="font-size:12px">${labelJob(j.kind)} ${j.progress||0}/${j.total||'?'} ${esc(j.message||'')}</div>`;}
+  else if(j.status==='error'){jb.innerHTML=`${auto}<div class="err">${esc(j.message||'失败')}</div>`;}
+  else if(p.auto){jb.innerHTML=`${auto}<div class="muted" style="font-size:12px;margin-top:4px">${esc((j.message)||'进行中…')}</div>`;}
+  else jb.innerHTML='';
+}
+// 只刷新会变的部分(进度/状态/媒体),媒体用 key 判断仅在变化时重建 → 视频不闪、输入框不被清空
+function paintDynamic(p){
+  DPROJ=p;
+  $('#dTitle').textContent=p.title||'未命名漫剧';
+  $('#dStatus').textContent=p.status||'';
+  paintJob(p);
+  if(p.final&&p.final.url){const fc=$('#dFinalCard');fc.style.display='block';const fv=$('#dFinalVideo');
+    if(fv._u!==p.final.url){fv._u=p.final.url;fv.src=p.final.url;$('#dFinalDl').href=p.final.url;}}
+  else $('#dFinalCard').style.display='none';
+  (p.characters||[]).forEach((c,ci)=>{const el=$('#dChars [data-cidx="'+ci+'"]');if(!el)return;
+    const img=el.querySelector('.char-img');const key=c.ref_image||'none';
+    if(img._k!==key){img._k=key;img.innerHTML=c.ref_image?`<img src="/outputs/${c.ref_image}" style="width:100%;border-radius:8px">`:'<div class="muted" style="padding:18px;text-align:center">未生成参考图</div>';}});
+  (p.shots||[]).forEach(s=>{const el=$('#dShotsBox [data-sidx="'+s.index+'"]');if(!el)return;
+    const m=el.querySelector('.shot-media');const key=shotMediaKey(s);
+    if(m._k!==key){m._k=key;m.innerHTML=shotMediaHtml(s);}
+    const st=s.status||'';const stEl=el.querySelector('.shot-status');
+    stEl.style.color=st==='error'?'var(--err)':(st==='clip'?'var(--ok)':'var(--mut)');
+    stEl.textContent=`镜${s.index} · ${s.shot_size||''} · ${s.camera_move||''} · ${shotStatus(s)}`;
+    el.querySelector('.shot-err').innerHTML=s.error?`<div class="err" style="font-size:11px;margin-top:3px;max-height:54px;overflow:auto">${esc(s.error)}</div>`:'';
+    el.querySelector('[data-rekey]').textContent=s.keyframe?'重生关键帧':'生成关键帧';
+    el.querySelector('[data-reclip]').textContent=s.clip?'重生片段':'生成片段';
+    // 关键帧候选(抽卡)
+    const kfs=s.keyframe_takes||[];const kfBox=el.querySelector('.kf-takes');const kfKey='k:'+kfs.join(',')+'|'+(s.keyframe||'');
+    if(kfBox._k!==kfKey){kfBox._k=kfKey;
+      kfBox.innerHTML=(kfs.length>1||(kfs.length===1&&kfs[0]!==s.keyframe)?kfs:[]).map(f=>`<img src="/outputs/${f}" data-pickkf="${f}" title="点选用这张" style="height:50px;border-radius:5px;cursor:pointer;border:2px solid ${f===s.keyframe?'var(--ok)':'transparent'}">`).join('');
+      kfBox.querySelectorAll('[data-pickkf]').forEach(im=>im.onclick=async()=>{try{await api('/api/drama/projects/'+DPROJ.id+'/keyframe-select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:s.index,filename:im.dataset.pickkf})});refreshDramaProject();toast('已选用镜'+s.index+'关键帧','ok');}catch(e){toast(e.message,'err');}});}
+    // 片段候选(抽卡)
+    const cls=s.clip_takes||[];const clBox=el.querySelector('.clip-takes');const clKey='c:'+cls.join(',')+'|'+(s.clip||'');
+    if(clBox._k!==clKey){clBox._k=clKey;
+      clBox.innerHTML=(cls.length>1||(cls.length===1&&cls[0]!==s.clip)?cls:[]).map(f=>`<div data-pickclip="${f}" title="点选用这条" style="cursor:pointer;border:2px solid ${f===s.clip?'var(--ok)':'transparent'};border-radius:5px;line-height:0"><video src="/outputs/${f}" muted preload="metadata" style="height:62px;border-radius:4px"></video></div>`).join('');
+      clBox.querySelectorAll('[data-pickclip]').forEach(d=>d.onclick=async()=>{try{await api('/api/drama/projects/'+DPROJ.id+'/clip-select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:s.index,filename:d.dataset.pickclip})});refreshDramaProject();toast('已选用镜'+s.index+'片段','ok');}catch(e){toast(e.message,'err');}});}});
+  // 配音抽卡候选(set-once by signature,避免轮询重载音频)
+  const tk=p.tts_takes||[];const tkBox=$('#dTakesList');
+  const tkey=JSON.stringify(tk.map(t=>[t.id,t.url||t.error]))+'|'+(p.tts_chosen_id||'');
+  if(tkBox._k!==tkey){tkBox._k=tkey;
+    tkBox.innerHTML=tk.map(t=>{
+      if(t.error)return `<div class="tcard" style="margin-bottom:8px"><div class="muted" style="font-size:12px">${t.voice} · ${esc(t.style)}</div><div class="err" style="font-size:12px">${esc(t.error)}</div></div>`;
+      const ch=p.tts_chosen_id===t.id;
+      return `<div class="tcard" style="margin-bottom:8px${ch?';border-color:var(--ok)':''}">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>${t.voice}</b><span class="muted" style="font-size:12px">${esc(t.style)}</span>${ch?'<span class="pill" style="border-color:var(--ok);color:var(--ok)">✓ 已选用</span>':''}<div style="flex:1"></div><button class="ghost sm" data-take="${t.id}">${ch?'已选用':'✓ 用这条'}</button></div>
+        <audio controls preload="none" src="${t.url}" style="width:100%;margin-top:6px"></audio></div>`;
+    }).join('');
+    tkBox.querySelectorAll('[data-take]').forEach(b=>b.onclick=async()=>{
+      try{await api('/api/drama/projects/'+DPROJ.id+'/tts-select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({take_id:b.dataset.take})});
+        toast('已选用这条配音,合成时将使用它','ok');refreshDramaProject();}catch(e){toast(e.message,'err');}});
+  }
+}
+function renderProject(p){
+  DPROJ=p;$('#dStage').style.display='block';
+  const cbox=$('#dChars');cbox.innerHTML='';
+  (p.characters||[]).forEach((c,ci)=>{const el=document.createElement('div');el.className='tcard';el.dataset.cidx=ci;
+    el.innerHTML=`<div class="char-img"></div>
+      <input data-c="${ci}" data-f="name" value="${esc(c.name||'')}" style="font-weight:700">
+      <textarea data-c="${ci}" data-f="appearance_anchor" placeholder="外貌锚点(英文)" style="min-height:50px">${esc(c.appearance_anchor||'')}</textarea>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px"><span class="muted" style="font-size:11px;flex:0 0 auto">音色</span>
+        <select data-c="${ci}" data-f="voice" style="flex:1">${voiceOptions(c.voice)}</select></div>`;
+    cbox.appendChild(el);});
+  const sbox=$('#dShotsBox');sbox.innerHTML='';
+  (p.shots||[]).forEach((s,si)=>{const el=document.createElement('div');el.className='tcard';el.style.marginBottom='12px';el.dataset.sidx=s.index;
+    el.innerHTML=`
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:220px">
+          <div class="shot-media"></div>
+          <div class="shot-status" style="font-size:11px;margin-top:4px"></div>
+          <div class="shot-err"></div>
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+            <button class="ghost sm" data-rekey>生成关键帧</button>
+            <button class="ghost sm" data-kftake>🎰图</button>
+            <button class="ghost sm" data-reclip>生成片段</button>
+            <button class="ghost sm" data-cliptake>🎰片段</button>
+            <button class="ghost sm" data-motion>🎬动态漫</button>
+          </div>
+          <div class="kf-takes" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div>
+          <div class="clip-takes" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div>
+        </div>
+        <div style="flex:2;min-width:260px">
+          <label>场景(中文)</label><input data-s="${si}" data-f="scene" value="${esc(s.scene||'')}">
+          <label>生图提示词 image_prompt(英文)</label><textarea data-s="${si}" data-f="image_prompt" style="min-height:54px">${esc(s.image_prompt||'')}</textarea>
+          <label>运镜/视频提示词 video_prompt</label><input data-s="${si}" data-f="video_prompt" value="${esc(s.video_prompt||'')}">
+          <div class="row"><div><label>旁白/台词</label><input data-s="${si}" data-f="narration" value="${esc(s.narration||s.dialogue||'')}"></div>
+            <div style="flex:0 0 90px"><label>时长s</label><input data-s="${si}" data-f="duration_sec" value="${s.duration_sec||4}"></div></div>
+        </div>
+      </div>`;
+    const gachaN=()=>+($('#dTakesN').value||4);
+    el.querySelector('[data-rekey]').onclick=async()=>{const r=await dramaStep('/keyframes',{indexes:[s.index]});if(r)toast('已重生镜'+s.index+'关键帧','ok');};
+    el.querySelector('[data-kftake]').onclick=async()=>{const r=await dramaStep('/keyframe-takes',{index:s.index,n:gachaN()});if(r)toast('镜'+s.index+' 关键帧抽卡中(出多张挑)','ok');};
+    el.querySelector('[data-reclip]').onclick=async()=>{const cs=(DPROJ.shots||[]).find(x=>x.index===s.index);
+      if(!cs||!cs.keyframe){toast('该镜还没有关键帧,先生成关键帧','err');return;}
+      const r=await dramaStep('/clips',{indexes:[s.index]});if(r)toast('已重排镜'+s.index+'图生视频','ok');};
+    el.querySelector('[data-cliptake]').onclick=async()=>{const cs=(DPROJ.shots||[]).find(x=>x.index===s.index);
+      if(!cs||!cs.keyframe){toast('该镜还没有关键帧,先生成关键帧','err');return;}
+      const r=await dramaStep('/clip-takes',{index:s.index,n:gachaN()});if(r)toast('镜'+s.index+' 片段抽卡 '+r.queued+' 个','ok');};
+    el.querySelector('[data-motion]').onclick=async()=>{const cs=(DPROJ.shots||[]).find(x=>x.index===s.index);
+      if(!cs||!cs.keyframe){toast('该镜还没有关键帧,先生成关键帧','err');return;}
+      const r=await dramaStep('/motion-clips',{indexes:[s.index],motion:$('#dMotion').value||'auto'});if(r)toast('镜'+s.index+' 动态漫生成中','ok');};
+    sbox.appendChild(el);});
+  paintDynamic(p);
+}
+function paintOrRender(p){
+  // 结构数量不匹配(刚载入/镜头数变了)就整建,否则只增量刷新(防视频闪烁、防清空输入框)
+  if($('#dShotsBox').children.length!==(p.shots||[]).length||$('#dChars').children.length!==(p.characters||[]).length)renderProject(p);
+  else paintDynamic(p);
+}
+function voiceList(){return (DMETA&&DMETA.tts_voices)||['alloy','Kore','Puck','Aoede','Charon'];}
+function voiceOptions(sel){return '<option value="">默认(用旁白音色)</option>'+voiceList().map(v=>`<option value="${v}"${v===sel?' selected':''}>${v}</option>`).join('');}
+function labelJob(k){return{character:'生成角色参考图',keyframe:'生成关键帧',assemble:'合成成片',auto:'一键全自动',tts_takes:'配音抽卡',keyframe_takes:'关键帧抽卡',motion:'动态漫运镜'}[k]||k;}
+function shotStatus(s){return{pending:'待生成',keyframe:'已出关键帧',clip_queued:'视频生成中',clip:'已出片段',error:'失败'}[s.status]||s.status||'';}
+function collectEdits(){
+  if(!DPROJ)return null;const chars=JSON.parse(JSON.stringify(DPROJ.characters));const shots=JSON.parse(JSON.stringify(DPROJ.shots));
+  $$('#dChars [data-c]').forEach(el=>{chars[+el.dataset.c][el.dataset.f]=el.value;});
+  $$('#dShotsBox [data-s]').forEach(el=>{const s=shots[+el.dataset.s];const f=el.dataset.f;s[f]=f==='duration_sec'?(parseFloat(el.value)||4):el.value;});
+  return {characters:chars,shots:shots,settings:dramaSettings()};
+}
+$('#dSaveEdits').onclick=async()=>{const patch=collectEdits();if(!patch)return;
+  try{DPROJ=await api('/api/drama/projects/'+DPROJ.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)});toast('已保存分镜修改','ok');}
+  catch(e){toast(e.message,'err');}};
+async function dramaStep(path,body){
+  if(!DPROJ)return;
+  // 先存一次当前编辑,避免丢失
+  try{await api('/api/drama/projects/'+DPROJ.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectEdits())});}catch(e){}
+  try{const r=await api('/api/drama/projects/'+DPROJ.id+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    startDramaPoll();return r;}catch(e){toast(e.message,'err');}
+}
+$('#dAutoVoice').onclick=async()=>{
+  if(!DPROJ)return;$('#dAutoVoice').disabled=true;toast('正在按角色内容分配音色…');
+  try{await api('/api/drama/projects/'+DPROJ.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectEdits())});}catch(e){}
+  try{const r=await api('/api/drama/projects/'+DPROJ.id+'/voices',{method:'POST'});
+    DPROJ=await api('/api/drama/projects/'+DPROJ.id);renderProject(DPROJ);
+    toast('已分配:'+r.characters.map(c=>c.name+'→'+c.voice).join(' / '),'ok');
+  }catch(e){toast(e.message,'err');}finally{$('#dAutoVoice').disabled=false;}
+};
+$('#dAllKfTakes').onclick=async()=>{const r=await dramaStep('/keyframe-takes-all',{n:+($('#dTakesN').value||4)});if(r)toast('全镜关键帧抽卡中,去「任务」/稍候看候选','ok');};
+$('#dAllClipTakes').onclick=async()=>{const r=await dramaStep('/clip-takes-all',{n:+($('#dTakesN').value||4)});if(r)toast('全镜片段抽卡 '+r.queued+' 个,去「任务」看进度','ok');};
+$('#dAllMotion').onclick=async()=>{const r=await dramaStep('/motion-clips',{motion:$('#dMotion').value||'auto'});if(r)toast('全镜动态漫生成中(免费/稳)','ok');};
+$('#dPrune').onclick=async()=>{
+  if(!DPROJ)return;
+  if(!confirm('删除所有「未选用」的候选(关键帧/片段/配音),只保留已选用的?不可恢复。'))return;
+  try{const r=await api('/api/drama/projects/'+DPROJ.id+'/prune-takes',{method:'POST'});
+    DPROJ=await api('/api/drama/projects/'+DPROJ.id);renderProject(DPROJ);toast('已清理 '+r.removed+' 个文件','ok');}
+  catch(e){toast(e.message,'err');}
+};
+$('#dGenTakes').onclick=async()=>{
+  if(!DPROJ)return;
+  try{await api('/api/drama/projects/'+DPROJ.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectEdits())});}catch(e){}
+  try{await api('/api/drama/projects/'+DPROJ.id+'/tts-takes',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({n:+($('#dTakesN').value||4),tts_enhance:$('#dTtsEnhance').checked,tts_style:$('#dTtsStyle').value||''})});
+    toast('开始配音抽卡,稍等逐条出来','ok');startDramaPoll();}catch(e){toast(e.message,'err');}
+};
+$('#dGenChars').onclick=()=>dramaStep('/characters');
+$('#dGenKeys').onclick=()=>dramaStep('/keyframes');
+$('#dGenClips').onclick=async()=>{const r=await dramaStep('/clips');if(r)toast('已排 '+r.queued+' 个图生视频任务','ok');};
+async function uploadBgm(){const f=$('#dBgm').files[0];if(!f)return null;
+  const fd=new FormData();fd.append('file',f);
+  try{const u=await api('/api/drama/projects/'+DPROJ.id+'/bgm',{method:'POST',body:fd});return u.bgm_path;}catch(e){return null;}}
+$('#dAssemble').onclick=async()=>{
+  if(DMETA&&DMETA.ffmpeg===false){toast('未检测到 ffmpeg,无法合成。见「设置」状态灯。','err');return;}
+  const bgm_path=await uploadBgm();
+  dramaStep('/assemble',Object.assign(assembleOptions(),{bgm_path}));
+};
+$('#dAuto').onclick=async()=>{
+  if(!DPROJ)return;
+  if(DMETA&&DMETA.ffmpeg===false){if(!confirm('未检测到 ffmpeg,最后的「合成成片」会失败(前面步骤仍会跑)。仍要继续?'))return;}
+  if(!confirm('一键全自动会依次生成 角色图→关键帧→每镜视频→成片,会真实消耗各服务商额度。确定开始?'))return;
+  const bgm_path=await uploadBgm();
+  const r=await dramaStep('/auto',Object.assign(assembleOptions(),{bgm_path}));
+  if(r)toast('已启动一键全自动,可在「任务」看每镜进度','ok');
+};
+$('#dRefresh').onclick=()=>refreshDramaProject();
+async function refreshDramaProject(){if(!DPROJ)return;try{const p=await api('/api/drama/projects/'+DPROJ.id);paintOrRender(p);}catch(e){}}
+function startDramaPoll(){if(dramaTimer)return;dramaTimer=setInterval(async()=>{
+  if(!DPROJ||$('#v-drama').classList.contains('active')===false){return;}
+  const p=await api('/api/drama/projects/'+DPROJ.id).catch(()=>null);if(!p)return;
+  paintOrRender(p);
+  const busy=p.auto||(p.job&&p.job.status==='running')||(p.shots||[]).some(s=>s.status==='clip_queued');
+  if(!busy){clearInterval(dramaTimer);dramaTimer=null;}
+},2500);}
+
+// ---------- bootstrap ----------
+async function refreshAll(){
+  CFG=await api('/api/config');
+  $('#curProfile').textContent=CFG.active_profile||'未配置';
+  $('#curFmt').textContent=CFG.format||'—';
+  $('#workers').textContent='并发 worker:'+(CFG.running_workers||0);
+  // 全局默认回填
+  $('#gDur').value=CFG.default_duration;$('#gRes').value=CFG.default_resolution;$('#gRatio').value=CFG.default_ratio;
+  $('#gConc').value=CFG.concurrency;$('#gTimeout').value=CFG.timeout;$('#gPoll').value=CFG.poll_interval;$('#gMaxWait').value=CFG.max_wait;
+  const sk=$('#gServerKey');sk.value='';sk.placeholder=CFG.has_server_api_key?'已设置鉴权 · 输入新值覆盖,留空保存=关闭':'留空=不鉴权(仅本机)';
+  await loadProfiles();
+}
+async function init(){
+  const d=await api('/api/presets');PRESETS=d.presets;ADVMAP=d.adv||{};
+  const sel=$('#pfPreset');PRESETS.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.label;sel.appendChild(o);});
+  applyPreset(PRESETS[0]);
+  await refreshAll();await loadFavorites();await loadTasks();startPoll();
+}
+init().catch(e=>toast('初始化失败:'+e.message,'err'));
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+outputs/
+bin/
+data.db
+config.json
+*.tmp
+*.7z
+*.zip
+*.mp4
+视频生成.7z
