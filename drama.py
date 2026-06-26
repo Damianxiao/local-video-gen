@@ -306,12 +306,16 @@ async def gen_clips_chained(pid: str, indexes: list | None = None) -> dict:
     _save(proj)
 
     carry = None   # 上一镜末帧字节;None 表示从本镜关键帧重新起头
-    done = 0
+    done = 0       # 已处理镜数(含成功/失败/跳过),驱动进度条
+    made = 0       # 成功出片镜数
     try:
         for shot in shots:
             first = carry or imagegen.read_asset(shot["keyframe"])
             if not first:
                 done += 1
+                cur = store.get_project(pid)
+                cur["job"]["progress"] = done
+                _save(cur)
                 continue
             dur = max(1, round(float(shot.get("duration_sec") or 5)))
             prompt = (shot.get("video_prompt") or "") + (
@@ -336,6 +340,7 @@ async def gen_clips_chained(pid: str, indexes: list | None = None) -> dict:
                     if ss["index"] == shot["index"]:
                         ss["clip"] = clip_file
                         ss["status"] = "clip"
+                made += 1
                 carry = await _extract_carry(pid, shot["index"], clip_file)
             else:
                 for ss in cur["shots"]:
@@ -350,12 +355,13 @@ async def gen_clips_chained(pid: str, indexes: list | None = None) -> dict:
         cur["job"] = {"kind": "clips", "status": "error", "progress": done,
                       "total": len(shots), "message": f"链式衔接出错:{e}"}
         _save(cur)
-        return {"generated": done}
+        return {"generated": made}
 
     cur = store.get_project(pid)
     cur["job"]["status"] = "done"
+    cur["job"]["message"] = f"链式衔接完成:{made}/{len(shots)} 镜出片"
     _save(cur)
-    return {"generated": done}
+    return {"generated": made}
 
 
 # ----------------------------- 合成成片 -----------------------------
@@ -922,7 +928,15 @@ async def auto_run(pid: str, options: dict):
             cur = store.get_project(pid)
             _set_job(cur, "auto", message="链式衔接逐镜图生视频中(串行,较慢)")
             _save(cur)
-            await gen_clips_chained(pid)
+            res = await gen_clips_chained(pid)
+            if not res.get("generated"):
+                # 一个片段都没成(失败或未配置视频服务商)→ 别再往下合成
+                cur = store.get_project(pid)
+                cur["auto"] = False
+                cur["job"] = {"kind": "auto", "status": "error",
+                              "message": "逐镜视频全部失败或未配置视频服务商,已停止。"}
+                _save(cur)
+                return
         else:
             # 仅给有关键帧的镜头排视频任务(并发)
             try:
