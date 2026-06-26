@@ -760,8 +760,15 @@ async def drama_keyframes(pid: str, payload: dict = None):
 
 @app.post("/api/drama/projects/{pid}/clips")
 async def drama_clips(pid: str, payload: dict = None):
+    p = payload or {}
+    idx = p.get("indexes")
+    # chained=True:链式衔接(末帧→下镜首帧),串行后台跑,前端轮询项目看进度
+    if p.get("chained"):
+        if not drama.get(pid):
+            raise HTTPException(status_code=404, detail="项目不存在")
+        asyncio.create_task(drama.gen_clips_chained(pid, idx))
+        return {"ok": True, "running": True, "chained": True}
     try:
-        idx = (payload or {}).get("indexes")
         return drama.gen_clips(pid, idx)
     except KeyError:
         raise HTTPException(status_code=404, detail="项目不存在")
