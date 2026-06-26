@@ -243,6 +243,121 @@ def _clip_done_cb(pid, index):
     return cb
 
 
+# ----------------------------- 链式衔接(末帧→下镜首帧) -----------------------------
+
+async def _await_task(tid: str, max_wait: int, interval: int = 5) -> str | None:
+    """轮询单个视频任务到结束,返回成片文件名;失败/超时返回 None。"""
+    waited = 0
+    while waited <= max_wait:
+        t = tasks.get(tid)
+        if not t:
+            return None
+        if t["status"] == "done":
+            vids = t.get("videos") or []
+            return vids[0]["filename"] if vids else None
+        if t["status"] == "error":
+            return None
+        await asyncio.sleep(interval)
+        waited += interval
+    return None
+
+
+async def _extract_carry(pid: str, index: int, clip_file: str) -> bytes | None:
+    """抽取本镜成片末帧存进 assets/,返回其字节;无 ffmpeg/失败则 None(断链回退)。"""
+    src = os.path.join(OUTPUT_DIR, os.path.basename(clip_file))
+    out = os.path.join(imagegen.ASSET_DIR, f"chain-{pid}-{index}.png")
+    res = await asyncio.to_thread(assemble.extract_last_frame, src, out)
+    if not res:
+        return None
+    try:
+        with open(out, "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+async def gen_clips_chained(pid: str, indexes: list | None = None) -> dict:
+    """串行「链式衔接」逐镜图生视频:第 1 镜用自己的关键帧当首帧;此后每镜用上一镜
+    成片的【末帧】当首帧,让镜头之间画面连续(解决逐镜独立生成导致的镜头断裂)。
+
+    代价:必须串行(不能并发),整条链较慢。抽帧需 ffmpeg;某镜抽帧失败或生成失败
+    则断链,下一镜回退用各自的关键帧重新起头。后台任务,前端轮询项目看进度。
+    """
+    proj = store.get_project(pid)
+    if not proj:
+        return {"generated": 0}
+    st = proj["settings"]
+    creds = _creds(st.get("video_profile"))
+    if not creds:
+        _set_job(proj, "clips", status="error", message="未配置「视频」服务商。")
+        _save(proj)
+        return {"generated": 0}
+
+    ratio = proj["style"].get("aspect_ratio", "16:9")
+    resolution = st.get("resolution") or "720p"
+    per_wait = int(st.get("clip_wait") or 2400)
+    shots = sorted(
+        (s for s in proj["shots"]
+         if (indexes is None or s["index"] in indexes) and s.get("keyframe")),
+        key=lambda s: s["index"],
+    )
+    _set_job(proj, "clips", total=len(shots), message="链式衔接生成中(串行,较慢)")
+    proj["status"] = "clips"
+    _save(proj)
+
+    carry = None   # 上一镜末帧字节;None 表示从本镜关键帧重新起头
+    done = 0
+    try:
+        for shot in shots:
+            first = carry or imagegen.read_asset(shot["keyframe"])
+            if not first:
+                done += 1
+                continue
+            dur = max(1, round(float(shot.get("duration_sec") or 5)))
+            prompt = (shot.get("video_prompt") or "") + (
+                " " + shot.get("scene", "") if shot.get("scene") else "")
+            t = tasks.enqueue(
+                prompt=prompt.strip() or "cinematic subtle motion", mode="i2v",
+                model=st.get("video_model") or creds.get("model") or "", profile=creds,
+                duration=dur, resolution=resolution, ratio=ratio,
+                first_frame=first, extra={},
+            )
+            cur = store.get_project(pid)
+            for ss in cur["shots"]:
+                if ss["index"] == shot["index"]:
+                    ss["task_id"] = t["id"]
+                    ss["status"] = "clip_queued"
+            _save(cur)
+
+            clip_file = await _await_task(t["id"], per_wait)
+            cur = store.get_project(pid)
+            if clip_file:
+                for ss in cur["shots"]:
+                    if ss["index"] == shot["index"]:
+                        ss["clip"] = clip_file
+                        ss["status"] = "clip"
+                carry = await _extract_carry(pid, shot["index"], clip_file)
+            else:
+                for ss in cur["shots"]:
+                    if ss["index"] == shot["index"]:
+                        ss["status"] = "error"
+                carry = None   # 断链:下一镜从自己的关键帧重新起头
+            done += 1
+            cur["job"]["progress"] = done
+            _save(cur)
+    except Exception as e:  # noqa: BLE001 兜底,别让后台任务静默死
+        cur = store.get_project(pid)
+        cur["job"] = {"kind": "clips", "status": "error", "progress": done,
+                      "total": len(shots), "message": f"链式衔接出错:{e}"}
+        _save(cur)
+        return {"generated": done}
+
+    cur = store.get_project(pid)
+    cur["job"]["status"] = "done"
+    _save(cur)
+    return {"generated": done}
+
+
 # ----------------------------- 合成成片 -----------------------------
 
 _DEFAULT_TTS_STYLE = "用富有感情、自然、抑扬顿挫的旁白语气朗读,注意停顿和节奏,娓娓道来"
@@ -802,19 +917,26 @@ async def auto_run(pid: str, options: dict):
     try:
         await gen_character_refs(pid)
         await gen_keyframes(pid)
-        # 仅给有关键帧的镜头排视频任务
-        try:
-            gen_clips(pid)
-        except providers.GenerationError as e:
+        if options.get("chained"):
+            # 链式衔接:串行逐镜生成,内部自带等待,镜头之间画面连续
             cur = store.get_project(pid)
-            cur["auto"] = False
-            cur["job"] = {"kind": "auto", "status": "error", "message": str(e)}
+            _set_job(cur, "auto", message="链式衔接逐镜图生视频中(串行,较慢)")
             _save(cur)
-            return
-        cur = store.get_project(pid)
-        _set_job(cur, "auto", message="逐镜图生视频中(可能需要几分钟)")
-        _save(cur)
-        await _wait_clips(pid, timeout=int(options.get("clip_wait") or 2400))
+            await gen_clips_chained(pid)
+        else:
+            # 仅给有关键帧的镜头排视频任务(并发)
+            try:
+                gen_clips(pid)
+            except providers.GenerationError as e:
+                cur = store.get_project(pid)
+                cur["auto"] = False
+                cur["job"] = {"kind": "auto", "status": "error", "message": str(e)}
+                _save(cur)
+                return
+            cur = store.get_project(pid)
+            _set_job(cur, "auto", message="逐镜图生视频中(可能需要几分钟)")
+            _save(cur)
+            await _wait_clips(pid, timeout=int(options.get("clip_wait") or 2400))
         await assemble_film(pid, options)   # 它会把 job 置 done/error
     except Exception as e:  # noqa: BLE001 兜底,别让后台任务静默死
         cur = store.get_project(pid)

@@ -424,6 +424,26 @@ def still_to_clip(image_path: str, out_path: str, *, w: int, h: int, fps: int,
     _run(args)
 
 
+def extract_last_frame(video_path: str, out_path: str) -> str | None:
+    """抽取视频的最后一帧存成 PNG —— 用于「链式衔接」:把上一镜成片的末帧当作
+    下一镜的首帧,让镜头之间画面连续。
+
+    同步,放线程池调用。需要 ffmpeg;没装或抽帧失败则返回 None(调用方据此回退到
+    本镜自己的关键帧,不至于中断整条流水线)。`-sseof -0.1` 从结尾往前 0.1s 定位,
+    取该处之后的第一帧即末帧;`-update 1` 允许把单张图写到固定输出名。
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg or not os.path.exists(video_path):
+        return None
+    args = [ffmpeg, "-y", "-sseof", "-0.1", "-i", video_path,
+            "-update", "1", "-frames:v", "1", out_path]
+    try:
+        _run(args, timeout=120)
+    except AssembleError:
+        return None
+    return out_path if os.path.exists(out_path) else None
+
+
 def _size_for(ratio: str) -> tuple[int, int]:
     r = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (1024, 1024),
          "4:3": (1024, 768), "3:4": (768, 1024), "21:9": (1280, 548)}
